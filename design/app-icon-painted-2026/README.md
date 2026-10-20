@@ -13,7 +13,7 @@ remains archived but is not bundled.
 
 ## Native macOS 27 icon
 
-`Monight.icon` is the active native Icon Composer document. Its transparent
+`Monight.icon` is the native Icon Composer source document. Its transparent
 painted M and crescent foreground sits above an automatic midnight-blue gradient.
 The moon stays embedded in the painted foreground to preserve its brushwork;
 it is not a separate glass layer. The foreground group uses subtle translucency
@@ -27,15 +27,16 @@ the same artwork; actual tint and background depend on the user's appearance.
 Run `npm run icons:macos` with a current full Xcode installation selected through
 `xcode-select` to refresh these previews and the platform icons. Ordinary
 `npm run icons:generate` reuses the saved previews and works without Icon Composer.
-The macOS Tauri configuration bundles this `.icon` source for compilation into
-`Assets.car`; the ICNS remains available as a static fallback.
+The macOS Tauri configuration currently uses the generated ICNS. Passing the
+`.icon` source to Tauri is disabled because Xcode 27's `actool` can fail while
+compiling a valid Icon Composer document (tauri-apps/tauri#15315). Re-enable it
+after that upstream toolchain path is fixed; the ICNS preserves the static
+default appearance in the meantime.
 
-Verified on macOS 27.0 with Xcode 27.0: the document opens and saves in Icon
-Composer, all six previews render, the frontend and Rust debug builds pass,
-and Tauri successfully packages `Monight.app` with `Assets.car` and
-`CFBundleIconName = Icon`. The catalog contains the transparent painted
-foreground and native icon stack. This verification builds a local app bundle;
-it does not replace `/Applications/Monight.app`.
+Verified on macOS 27.0 with Xcode 27.0: Icon Composer renders the document and
+all six previews. Tauri packaging uses the ICNS fallback until `actool` can
+reliably compile the native icon into `Assets.car`. This verification builds a
+local app bundle; it does not replace `/Applications/Monight.app`.
 
 The transparent foreground was created with the built-in image generation tool
 using this prompt:
