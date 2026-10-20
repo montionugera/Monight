@@ -6,6 +6,7 @@ use tauri::{
 // Import for opening URLs in browser
 use tauri_plugin_opener::OpenerExt;
 
+#[cfg(target_os = "macos")]
 fn build_file_menu(app: &AppHandle) -> Result<Submenu<Wry>, tauri::Error> {
     Submenu::with_items(
         app,
