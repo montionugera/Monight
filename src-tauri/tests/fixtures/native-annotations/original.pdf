@@ -6,7 +6,7 @@ endobj
 << /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 9 0 R >> >>  >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 9 0 R >> >> /Annots [17 0 R 18 0 R] >>
 endobj
 4 0 obj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R /Resources << /Font << /F1 9 0 R >> >> >>
@@ -56,27 +56,35 @@ endobj
 16 0 obj
 << /Title (Native annotations) /Author (Monight) /Subject (Navigation) /Keywords (reader; queries) >>
 endobj
+17 0 obj
+<< /Type /Annot /Subtype /Link /P 3 0 R /Rect [72 650 260 685] /Border [0 0 1] /A << /S /URI /URI (https://example.com/page) >> >>
+endobj
+18 0 obj
+<< /Type /Annot /Subtype /Link /P 3 0 R /Rect [72 590 260 625] /Border [0 0 1] /Dest [4 0 R /XYZ 0 396 0] >>
+endobj
 xref
-0 17
+0 19
 0000000000 65535 f 
 0000000009 00000 n 
 0000000075 00000 n 
 0000000144 00000 n 
-0000000271 00000 n 
-0000000397 00000 n 
-0000000523 00000 n 
-0000000651 00000 n 
-0000000748 00000 n 
-0000000843 00000 n 
-0000000913 00000 n 
-0000000987 00000 n 
-0000001117 00000 n 
-0000001249 00000 n 
-0000001383 00000 n 
-0000001469 00000 n 
-0000001549 00000 n 
+0000000294 00000 n 
+0000000420 00000 n 
+0000000546 00000 n 
+0000000674 00000 n 
+0000000771 00000 n 
+0000000866 00000 n 
+0000000936 00000 n 
+0000001010 00000 n 
+0000001140 00000 n 
+0000001272 00000 n 
+0000001406 00000 n 
+0000001492 00000 n 
+0000001572 00000 n 
+0000001690 00000 n 
+0000001837 00000 n 
 trailer
-<< /Size 17 /Root 1 0 R /Info 16 0 R >>
+<< /Size 19 /Root 1 0 R /Info 16 0 R >>
 startxref
-1667
+1962
 %%EOF
