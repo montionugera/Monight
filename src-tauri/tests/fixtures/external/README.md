@@ -29,7 +29,54 @@ not permission to accept the observed 4-point shrink of the Preview note. #79 sh
 expose that failure rather than change the expected input geometry to the broken output.
 An Acrobat fixture can be registered later with another `readers` entry and inventory
 entries; none was created or tested in this session. The automated #79 contracts have
-not been implemented by this fixture-preparation change.
+since been implemented; see [Automated contracts](#automated-contracts-79).
+
+## Automated contracts (#79)
+
+Two contracts iterate over `readers` in `manifest.json`, so every registered reader is
+checked on each CI run:
+
+- **Offline Chromium** (`src/embedpdf-external-readers-smoke.ts`, run by
+  `npm run test:embedpdf-offline` on Linux): opens the supported fixture with the pinned
+  EmbedPDF runtime; finds each `annotationSelectors` entry as exactly one native object
+  with the selector's subtype, contents, and author; checks its Rect (and QuadPoints for
+  markup) against the inventory within `geometryTolerancePoints`; selects it, edits its
+  contents, exports, reopens, deletes it, and exports again. Other Annotations must be
+  unchanged throughout.
+- **Rust** (`src-tauri/src/external_reader_contract.rs`, run by `cargo test` on all three
+  platforms): asserts the observed classification of both fixtures, that native Save
+  accepts both exports over the supported fixture without changing its Document Content
+  (pages, page text, Links, outline, and metadata), and either that native Save refuses
+  the unsupported fixture with `unsupportedReason` (`read-only`) or, when it is
+  `editable`, that native Save accepts its Monight export (`unsupported-edited`, which the
+  Chromium contract then produces) with Document Content and the unsupported
+  Annotations unchanged.
+
+Exports are not byte-for-byte reproducible (PDFium names Annotations and stamps dates), so
+CI does not compare them with the committed copies. Instead the Linux frontend job runs the
+offline contracts with `--write-annotation-fixtures` and then runs the Rust contract on
+that run's exports. The committed exports keep `cargo test` meaningful on every platform.
+
+`knownGeometryFailures` pins geometry that is known to be broken after a Monight stage,
+instead of the input geometry. The Chromium contract prints each as `KNOWN FAILURE` and
+fails when the observed geometry no longer matches, so a fix or a further change forces
+the entry to be revisited. The Preview note's 24-to-20-point shrink is registered this way.
+
+### Registering another reader
+
+To register an Acrobat fixture, commit `acrobat-supported.pdf` and
+`acrobat-unsupported.pdf` with provenance, add their inventories under `files`, and add a
+`readers` entry with the same fields as `preview-11`: a unique `id`, both fixture
+names, both observed classifications, `unsupportedReason` when read-only,
+`annotationSelectors`, `geometryTolerancePoints`, and any `knownGeometryFailures`. Then
+refresh the exports the Rust contract checks and commit them:
+
+```bash
+node scripts/verify-embedpdf-offline.mjs --write-annotation-fixtures
+git status -- src-tauri/tests/fixtures/external/exports
+```
+
+No test code changes are needed.
 
 ## Preview provenance
 

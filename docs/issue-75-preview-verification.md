@@ -38,7 +38,8 @@ the repository-relative archive `artifacts/issue-75/2026-10-20/`, alongside a co
 nine-file inventory. The [versioned input inventory](../src-tauri/tests/fixtures/external/manifest.json)
 records checksums, native geometry, author, contents, unrelated content, and a reader
 registration ready for #79. These are real external saves; none was synthesized using
-pypdf. The automated #79 Rust and Chromium contracts are still to be implemented.
+pypdf. The automated #79 Rust and Chromium contracts are described in the
+[fixture README](../src-tauri/tests/fixtures/external/README.md#automated-contracts-79).
 
 ## File-preparation checks
 

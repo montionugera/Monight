@@ -11,6 +11,8 @@ use tauri_plugin_store::StoreExt;
 
 mod commands;
 mod document_intake;
+#[cfg(test)]
+mod external_reader_contract;
 mod menu;
 mod pdf_replace;
 mod pdf_save;
