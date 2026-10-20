@@ -192,6 +192,7 @@ where
     document_intake.authorize(paths);
 }
 
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "android", test))]
 pub(crate) fn payload_from_opened_urls(
     document_intake: &document_intake::DocumentIntake,
     urls: &[url::Url],
