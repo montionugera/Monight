@@ -202,6 +202,8 @@ export interface UnsavedDocumentRequest {
 
 interface CreateReaderActionsOptions {
   chooseUnsavedDocument?: (request: UnsavedDocumentRequest) => Promise<UnsavedDocumentChoice>;
+  /** Save edited Documents on close and Quit, asking only when that save fails. */
+  saveEditsOnClose?: boolean;
   initialSession: PersistedReadingSession;
   defaultVisualState?: ReadingSessionVisualState;
   projection: ReaderProjection;
@@ -393,6 +395,7 @@ export function createReaderActions({
   pdfSaveAdapter,
   recoveryDraftAdapter,
   chooseUnsavedDocument,
+  saveEditsOnClose = false,
   reopenDocument,
   persist,
   persistenceDebounceMs = 250,
@@ -1282,6 +1285,9 @@ export function createReaderActions({
     options?: ReaderActionOptions,
   ): Promise<boolean> => {
     let error: unknown;
+    // Like Preview, closing saves edits into the PDF; the reader is asked only when
+    // that save fails, so an unsavable Document never loses work silently.
+    let autosaveAttempted = !saveEditsOnClose;
     while (true) {
       const filePath = runtimePath(runtime);
       if (!filePath || options?.isCancelled?.()) return false;
@@ -1296,6 +1302,12 @@ export function createReaderActions({
       if (mayDestroy(filePath)) return true;
       if (pendingSaves.size > 0) {
         await Promise.allSettled([...pendingSaves.values()]);
+        continue;
+      }
+      if (!autosaveAttempted) {
+        autosaveAttempted = true;
+        const result = await saveDocument({ type: 'saveDocument', filePath }, options);
+        if (result.status === 'failure') error = result.error;
         continue;
       }
       const document = session.snapshot().documents.find((item) => item.filePath === filePath);
