@@ -1,0 +1,307 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-10-20",
+  "operator": "Codex via native computer control, explicitly authorized by user",
+  "os": "macOS 27.0.1 (26A434)",
+  "externalReader": {
+    "name": "Preview",
+    "version": "11.0"
+  },
+  "monight": {
+    "version": "0.6.0",
+    "binarySha256": "1b9e65f923bcce09738d05d523fe3c4018b8e12c37948c0e13e855d91c5f4ef2",
+    "sourceRevision": null,
+    "ciRun": null,
+    "artifact": "installed /Applications/Monight.app; not a verified CI candidate"
+  },
+  "readers": [
+    {
+      "id": "preview-11",
+      "supportedFixture": "preview-supported.pdf",
+      "unsupportedFixture": "preview-unsupported.pdf",
+      "supportedObservedClassification": "editable",
+      "unsupportedObservedClassification": "read-only",
+      "unsupportedReason": "Unsupported embedded annotations; saving is blocked",
+      "annotationSelectors": [
+        {
+          "subtype": "/Highlight",
+          "contents": "Preview native highlight 75",
+          "author": "Andrew Chen"
+        },
+        {
+          "subtype": "/Text",
+          "contents": "Preview native note 75",
+          "author": "Andrew Chen"
+        }
+      ],
+      "geometryTolerancePoints": 0.01,
+      "observedFailures": [
+        "Preview note editor does not open after Monight re-save",
+        "Preview note Rect changes from 24x24 points to 20x20 points after Monight re-save"
+      ]
+    }
+  ],
+  "files": {
+    "preview-supported.pdf": {
+      "sha256": "807d4a7ea35b23bc4d25b706cb74071ebdd46264f982c68307ef2c135a9d556a",
+      "size": 20738,
+      "metadata": {
+        "/Title": "Native annotations",
+        "/Subject": "Navigation",
+        "/Keywords": "reader; queries",
+        "/Author": "Monight"
+      },
+      "outline": [
+        {
+          "title": "Chapter",
+          "pageIndex": 1
+        },
+        [
+          {
+            "title": "Nested chapter",
+            "pageIndex": 2
+          }
+        ],
+        {
+          "title": "Website",
+          "pageIndex": null
+        },
+        {
+          "title": "Blocked website",
+          "pageIndex": null
+        },
+        {
+          "title": "Chapter",
+          "pageIndex": 0
+        }
+      ],
+      "pages": [
+        {
+          "mediaBox": [0, 0, 612, 792],
+          "rotation": 0,
+          "text": "moon first page\nmoon lower match",
+          "contentSha256": "978999a72d46a7b2a903534ca7c22b65337cef093ce40059e937ea87dcf568ab",
+          "annotations": [
+            {
+              "Subtype": "/Link",
+              "Rect": [72, 650, 260, 685],
+              "NM": "2d70e975-354d-49de-a5b4-9a842fd642f0",
+              "hasAppearance": true,
+              "action": {
+                "URI": "https://example.com/page",
+                "S": "/URI"
+              }
+            },
+            {
+              "Subtype": "/Link",
+              "Rect": [72, 590, 260, 625],
+              "NM": "be5297ec-2b87-4068-ae8b-5fa369fb3371",
+              "hasAppearance": true,
+              "destination": {
+                "pageIndex": 1,
+                "fit": "/XYZ",
+                "args": [0, 396, 0]
+              }
+            },
+            {
+              "Subtype": "/Text",
+              "Contents": "Native comment",
+              "T": "Guest",
+              "Rect": [260, 668, 280, 688],
+              "NM": "comment-native",
+              "F": 28,
+              "Name": "/Comment",
+              "C": [1, 1, 0],
+              "hasAppearance": true
+            },
+            {
+              "Subtype": "/Popup",
+              "Rect": [236, 746, 308, 782],
+              "F": 4,
+              "C": [1, 1, 0],
+              "hasAppearance": false
+            },
+            {
+              "Subtype": "/Text",
+              "Contents": "Preview native note 75",
+              "T": "Andrew Chen",
+              "Rect": [220.6667, 372.0833, 244.6667, 396.0833],
+              "F": 4,
+              "C": [1, 0.92, 0.42],
+              "hasAppearance": true
+            },
+            {
+              "Subtype": "/Highlight",
+              "Contents": "Preview native highlight 75",
+              "T": "Andrew Chen",
+              "Rect": [72, 414.4805, 268.056, 738.4805],
+              "QuadPoints": [
+                72, 738.4805, 237.408, 738.4805, 72, 714.4805, 237.408, 714.4805, 72, 438.4805,
+                268.056, 438.4805, 72, 414.4805, 268.056, 414.4805
+              ],
+              "F": 4,
+              "C": [0.980392, 0.803922, 0.352941],
+              "hasAppearance": true
+            },
+            {
+              "Subtype": "/Popup",
+              "Rect": [272.056, 742.4805, 344.056, 778.4805],
+              "F": 4,
+              "C": [0.980392, 0.803922, 0.352941],
+              "hasAppearance": false
+            }
+          ]
+        },
+        {
+          "mediaBox": [0, 0, 612, 792],
+          "rotation": 0,
+          "text": "moon second page",
+          "contentSha256": "1e73df677c670b92a7929c6882dc63a507c4c8965a729da5c63b5d0fa45fbb7d",
+          "annotations": []
+        },
+        {
+          "mediaBox": [0, 0, 612, 792],
+          "rotation": 0,
+          "text": "sun third page",
+          "contentSha256": "dc7affbbb9c8187222d913b41c09d1739236ba428e643a98342111157d5a41cd",
+          "annotations": []
+        }
+      ]
+    },
+    "preview-unsupported.pdf": {
+      "sha256": "ffb4ddd074bfd896bdec01e19cf528a222e3dcb667f9b80cde54bf3f577f8276",
+      "size": 32111,
+      "metadata": {
+        "/Author": "Monight",
+        "/Keywords": "reader; queries",
+        "/Subject": "Navigation",
+        "/Title": "Native annotations"
+      },
+      "outline": [
+        {
+          "title": "Chapter",
+          "pageIndex": 1
+        },
+        [
+          {
+            "title": "Nested chapter",
+            "pageIndex": 2
+          }
+        ],
+        {
+          "title": "Website",
+          "pageIndex": null
+        },
+        {
+          "title": "Blocked website",
+          "pageIndex": null
+        },
+        {
+          "title": "Chapter",
+          "pageIndex": 0
+        }
+      ],
+      "pages": [
+        {
+          "mediaBox": [0, 0, 612, 792],
+          "rotation": 0,
+          "text": "moon first page\nmoon lower match",
+          "contentSha256": "978999a72d46a7b2a903534ca7c22b65337cef093ce40059e937ea87dcf568ab",
+          "annotations": [
+            {
+              "Subtype": "/Link",
+              "Rect": [72, 650, 260, 685],
+              "NM": "2d70e975-354d-49de-a5b4-9a842fd642f0",
+              "hasAppearance": true,
+              "action": {
+                "S": "/URI",
+                "URI": "https://example.com/page"
+              }
+            },
+            {
+              "Subtype": "/Link",
+              "Rect": [72, 590, 260, 625],
+              "NM": "be5297ec-2b87-4068-ae8b-5fa369fb3371",
+              "hasAppearance": true,
+              "destination": {
+                "pageIndex": 1,
+                "fit": "/XYZ",
+                "args": [0, 396, 0]
+              }
+            },
+            {
+              "Subtype": "/Text",
+              "Contents": "Native comment",
+              "T": "Guest",
+              "Rect": [260, 668, 280, 688],
+              "NM": "comment-native",
+              "F": 28,
+              "Name": "/Comment",
+              "C": [1, 1, 0],
+              "hasAppearance": true
+            },
+            {
+              "Subtype": "/Popup",
+              "Rect": [236, 746, 308, 782],
+              "F": 4,
+              "C": [1, 1, 0],
+              "hasAppearance": false
+            },
+            {
+              "Subtype": "/Text",
+              "Contents": "Preview native note 75",
+              "T": "Andrew Chen",
+              "Rect": [220.6667, 372.0833, 244.6667, 396.0833],
+              "F": 4,
+              "C": [1, 0.92, 0.42],
+              "hasAppearance": true
+            },
+            {
+              "Subtype": "/Highlight",
+              "Contents": "Preview native highlight 75",
+              "T": "Andrew Chen",
+              "Rect": [72, 414.4805, 268.056, 738.4805],
+              "QuadPoints": [
+                72, 738.4805, 237.408, 738.4805, 72, 714.4805, 237.408, 714.4805, 72, 438.4805,
+                268.056, 438.4805, 72, 414.4805, 268.056, 414.4805
+              ],
+              "F": 4,
+              "C": [0.980392, 0.803922, 0.352941],
+              "hasAppearance": true
+            },
+            {
+              "Subtype": "/Popup",
+              "Rect": [272.056, 742.4805, 344.056, 778.4805],
+              "F": 4,
+              "C": [0.980392, 0.803922, 0.352941],
+              "hasAppearance": false
+            },
+            {
+              "Subtype": "/Square",
+              "T": "Andrew Chen",
+              "Rect": [231.6667, 340.0833, 377, 452.0833],
+              "F": 4,
+              "C": [1, 0.1491314, 0],
+              "hasAppearance": true
+            }
+          ]
+        },
+        {
+          "mediaBox": [0, 0, 612, 792],
+          "rotation": 0,
+          "text": "moon second page",
+          "contentSha256": "1e73df677c670b92a7929c6882dc63a507c4c8965a729da5c63b5d0fa45fbb7d",
+          "annotations": []
+        },
+        {
+          "mediaBox": [0, 0, 612, 792],
+          "rotation": 0,
+          "text": "sun third page",
+          "contentSha256": "dc7affbbb9c8187222d913b41c09d1739236ba428e643a98342111157d5a41cd",
+          "annotations": []
+        }
+      ]
+    }
+  },
+  "supportingEvidence": "artifacts/issue-75/2026-10-20 (not versioned)"
+}
