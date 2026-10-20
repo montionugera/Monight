@@ -345,6 +345,36 @@ fn write_pdf(
 }
 
 const EDITABLE_ANNOTATIONS: &[&[u8]] = &[b"Highlight", b"Text", b"Popup"];
+// Never edited by Monight; saving must carry them through unchanged.
+const PRESERVED_ANNOTATIONS: &[&[u8]] = &[b"Link"];
+
+fn is_supported_annotation(subtype: &[u8]) -> bool {
+    EDITABLE_ANNOTATIONS.contains(&subtype) || PRESERVED_ANNOTATIONS.contains(&subtype)
+}
+
+fn preserved_page_annotations(
+    document: &lopdf::Document,
+    page: lopdf::ObjectId,
+) -> Result<Vec<lopdf::Dictionary>, String> {
+    let page = document.get_dictionary(page).map_err(|e| e.to_string())?;
+    let Ok(annots) = page.get(b"Annots") else {
+        return Ok(Vec::new());
+    };
+    let (_, array) = document.dereference(annots).map_err(|e| e.to_string())?;
+    let mut preserved = Vec::new();
+    for entry in array.as_array().map_err(|e| e.to_string())? {
+        let (_, annotation) = document.dereference(entry).map_err(|e| e.to_string())?;
+        let annotation = annotation.as_dict().map_err(|e| e.to_string())?;
+        let subtype = annotation
+            .get(b"Subtype")
+            .and_then(lopdf::Object::as_name)
+            .map_err(|e| e.to_string())?;
+        if PRESERVED_ANNOTATIONS.contains(&subtype) {
+            preserved.push(annotation.clone());
+        }
+    }
+    Ok(preserved)
+}
 
 fn visit_pdf_dictionaries(
     object: &lopdf::Object,
@@ -470,7 +500,7 @@ fn load_editable(bytes: &[u8]) -> Result<lopdf::Document, String> {
                 .get(b"Subtype")
                 .and_then(lopdf::Object::as_name)
                 .map_err(|_| "Unknown embedded annotation; saving is blocked")?;
-            if !EDITABLE_ANNOTATIONS.contains(&subtype) {
+            if !is_supported_annotation(subtype) {
                 return Err("Unsupported embedded annotations cannot yet be safely preserved; this Document is read-only".into());
             }
         }
@@ -488,7 +518,7 @@ fn load_editable(bytes: &[u8]) -> Result<lopdf::Document, String> {
                     .and_then(|d| d.get(b"Subtype"))
                     .and_then(lopdf::Object::as_name)
                     .map_err(|e| e.to_string())?;
-                if !EDITABLE_ANNOTATIONS.contains(&subtype) {
+                if !is_supported_annotation(subtype) {
                     return Err("Unsupported embedded annotations; saving is blocked".into());
                 }
             }
@@ -506,8 +536,9 @@ fn verify_preservation(original: &[u8], bytes: &[u8]) -> Result<(), String> {
     let after = load_editable(bytes)?;
     let mut seen = std::collections::HashSet::new();
     // Compare the reachable content graph, resolving references rather than
-    // relying on object numbers surviving PDFium's serialization. Only supported page
-    // annotation lists may change; all other annotations are blocked at intake.
+    // relying on object numbers surviving PDFium's serialization. Page annotation lists
+    // may change only in their editable entries; preserved ones are compared below and
+    // all other annotations are blocked at intake.
     fn same(
         a: &lopdf::Object,
         b: &lopdf::Object,
@@ -584,6 +615,37 @@ fn verify_preservation(original: &[u8], bytes: &[u8]) -> Result<(), String> {
             (Ok(a), Ok(b)) if same(a, b, &before, &after, &mut seen, 0) => {}
             (Err(_), Err(_)) => {}
             _ => return Err("Saving blocked: unrelated PDF content or metadata changed".into()),
+        }
+    }
+    let (before_pages, after_pages) = (before.get_pages(), after.get_pages());
+    if before_pages.len() != after_pages.len() {
+        return Err("Saving blocked: unrelated PDF content or metadata changed".into());
+    }
+    for (before_page, after_page) in before_pages.values().zip(after_pages.values()) {
+        let a = preserved_page_annotations(&before, *before_page)?;
+        let mut b = preserved_page_annotations(&after, *after_page)?;
+        // PDFium names every annotation and generates missing appearances on save;
+        // anything the original already had must survive unchanged.
+        for (a, b) in a.iter().zip(&mut b) {
+            for key in [b"NM".as_slice(), b"AP", b"PDFIUM_HasGeneratedAP"] {
+                if !a.has(key) {
+                    b.remove(key);
+                }
+            }
+        }
+        if a.len() != b.len()
+            || !a.into_iter().zip(b).all(|(a, b)| {
+                same(
+                    &lopdf::Object::Dictionary(a),
+                    &lopdf::Object::Dictionary(b),
+                    &before,
+                    &after,
+                    &mut seen,
+                    0,
+                )
+            })
+        {
+            return Err("Saving blocked: links or other preserved annotations changed".into());
         }
     }
 
@@ -987,6 +1049,56 @@ mod tests {
     }
 
     #[test]
+    fn links_are_editable_and_must_survive_saves_unchanged() {
+        use lopdf::{dictionary, Object};
+        let set_annots = |doc: &mut lopdf::Document, annots: Vec<Object>| {
+            let page = *doc.get_pages().values().next().unwrap();
+            doc.get_object_mut(page)
+                .unwrap()
+                .as_dict_mut()
+                .unwrap()
+                .set("Annots", annots);
+            let mut bytes = Vec::new();
+            doc.save_to(&mut bytes).unwrap();
+            bytes
+        };
+        let mut doc = lopdf::Document::load_mem(&pdf()).unwrap();
+        let link = doc.add_object(dictionary! {
+            "Type" => "Annot",
+            "Subtype" => "Link",
+            "Rect" => vec![72.into(), 650.into(), 260.into(), 685.into()],
+            "A" => dictionary! { "S" => "URI", "URI" => Object::string_literal("https://example.com") },
+        });
+        let original = set_annots(&mut doc, vec![link.into()]);
+        assert_eq!(editing_status(&original), None);
+
+        let comment = doc.add_object(dictionary! { "Type" => "Annot", "Subtype" => "Text" });
+        let commented = set_annots(&mut doc, vec![link.into(), comment.into()]);
+        let removed = set_annots(&mut doc, vec![comment.into()]);
+        doc.get_object_mut(link)
+            .unwrap()
+            .as_dict_mut()
+            .unwrap()
+            .set("A", dictionary! { "S" => "URI", "URI" => Object::string_literal("https://evil.example") });
+        let rewritten = set_annots(&mut doc, vec![link.into(), comment.into()]);
+
+        let dir = directory();
+        let writer = PdfSave::default();
+        let selected = writer.authorize(&dir.join("commented.pdf")).unwrap();
+        writer
+            .write_new(&selected.token, &commented, &original)
+            .unwrap();
+        for (name, damaged) in [("removed.pdf", removed), ("rewritten.pdf", rewritten)] {
+            let selected = writer.authorize(&dir.join(name)).unwrap();
+            assert!(writer
+                .write_new(&selected.token, &damaged, &original)
+                .is_err());
+            assert!(!dir.join(name).exists());
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn protected_fixture_matrix_reports_specific_read_only_reasons() {
         for ((_, bytes), reason) in crate::test_support::protected_pdf_fixtures()
             .into_iter()
@@ -1167,6 +1279,13 @@ mod tests {
         assert!(objects
             .iter()
             .any(|d| d.get(b"Subtype").unwrap().as_name().unwrap() == b"Text"));
+        assert_eq!(
+            objects
+                .iter()
+                .filter(|d| d.get(b"Subtype").unwrap().as_name().unwrap() == b"Link")
+                .count(),
+            2
+        );
         let selected = writer.authorize(&dir.join("deleted.pdf")).unwrap();
         writer
             .write_new(&selected.token, deleted, annotated)

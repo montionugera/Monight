@@ -203,7 +203,7 @@ async function open(bytes: Uint8Array): Promise<{
 
 async function run() {
   await verifyProtectedDocuments();
-  const original = navigationPdf('Native annotations', 0, false);
+  const original = navigationPdf('Native annotations');
   const failed = await open(original);
   const createNativeAnnotation = failed.engine.createPageAnnotation;
   failed.engine.createPageAnnotation = () =>
