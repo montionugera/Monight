@@ -345,8 +345,9 @@ fn write_pdf(
 }
 
 const EDITABLE_ANNOTATIONS: &[&[u8]] = &[b"Highlight", b"Text", b"Popup"];
-// Never edited by Monight; saving must carry them through unchanged.
-const PRESERVED_ANNOTATIONS: &[&[u8]] = &[b"Link"];
+// Never edited by Monight (the viewer locks them); saving must carry them through
+// unchanged. Text markup beyond highlights arrives from Preview, Acrobat, and others.
+const PRESERVED_ANNOTATIONS: &[&[u8]] = &[b"Link", b"Underline", b"StrikeOut", b"Squiggly"];
 
 fn is_supported_annotation(subtype: &[u8]) -> bool {
     EDITABLE_ANNOTATIONS.contains(&subtype) || PRESERVED_ANNOTATIONS.contains(&subtype)
@@ -1143,6 +1144,40 @@ mod tests {
         assert!(verify_preservation(&original, &recoded)
             .unwrap_err()
             .ends_with("/Im1/Filter"));
+    }
+
+    #[test]
+    fn external_text_markup_is_editable_and_must_survive_saves_unchanged() {
+        use lopdf::{dictionary, Object};
+        for subtype in ["Underline", "StrikeOut", "Squiggly"] {
+            let mut doc = lopdf::Document::load_mem(&pdf()).unwrap();
+            let markup = doc.add_object(dictionary! {
+                "Subtype" => subtype,
+                "Rect" => vec![72.into(), 650.into(), 260.into(), 685.into()],
+                "QuadPoints" => vec![72.into(), 685.into(), 260.into(), 685.into(), 72.into(), 650.into(), 260.into(), 650.into()],
+            });
+            let page = *doc.get_pages().values().next().unwrap();
+            let mut save = |doc: &mut lopdf::Document, annots: Vec<Object>| {
+                doc.get_object_mut(page)
+                    .unwrap()
+                    .as_dict_mut()
+                    .unwrap()
+                    .set("Annots", annots);
+                let mut bytes = Vec::new();
+                doc.save_to(&mut bytes).unwrap();
+                bytes
+            };
+            let original = save(&mut doc, vec![markup.into()]);
+            assert_eq!(editing_status(&original), None, "{subtype}");
+            let highlight = doc.add_object(dictionary! { "Subtype" => "Highlight" });
+            let highlighted = save(&mut doc, vec![markup.into(), highlight.into()]);
+            verify_preservation(&original, &highlighted).unwrap();
+            let removed = save(&mut doc, vec![highlight.into()]);
+            assert!(
+                verify_preservation(&original, &removed).is_err(),
+                "{subtype}"
+            );
+        }
     }
 
     #[test]
