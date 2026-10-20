@@ -538,17 +538,35 @@ fn verify_preservation(original: &[u8], bytes: &[u8]) -> Result<(), String> {
     // Compare the reachable content graph, resolving references rather than
     // relying on object numbers surviving PDFium's serialization. Page annotation lists
     // may change only in their editable entries; preserved ones are compared below and
-    // all other annotations are blocked at intake.
+    // all other annotations are blocked at intake. On a mismatch, `path` is left naming
+    // where the graphs diverge so the refusal can say what changed.
+    fn within(
+        segment: String,
+        a: &lopdf::Object,
+        b: &lopdf::Object,
+        before: &lopdf::Document,
+        after: &lopdf::Document,
+        seen: &mut std::collections::HashSet<(lopdf::ObjectId, lopdf::ObjectId)>,
+        path: &mut Vec<String>,
+    ) -> bool {
+        path.push(segment);
+        let matched = same(a, b, before, after, seen, path);
+        if matched {
+            path.pop();
+        }
+        matched
+    }
     fn same(
         a: &lopdf::Object,
         b: &lopdf::Object,
         before: &lopdf::Document,
         after: &lopdf::Document,
         seen: &mut std::collections::HashSet<(lopdf::ObjectId, lopdf::ObjectId)>,
-        depth: usize,
+        path: &mut Vec<String>,
     ) -> bool {
         use lopdf::Object;
-        if depth > 200 {
+        if path.len() > 200 {
+            path.push("(nesting limit)".into());
             return false;
         }
         if let (Object::Reference(aid), Object::Reference(bid)) = (a, b) {
@@ -556,10 +574,8 @@ fn verify_preservation(original: &[u8], bytes: &[u8]) -> Result<(), String> {
                 return true;
             }
         }
-        let Ok((_, a)) = before.dereference(a) else {
-            return false;
-        };
-        let Ok((_, b)) = after.dereference(b) else {
+        let (Ok((_, a)), Ok((_, b))) = (before.dereference(a), after.dereference(b)) else {
+            path.push("(unresolvable reference)".into());
             return false;
         };
         match (a, b) {
@@ -579,16 +595,25 @@ fn verify_preservation(original: &[u8], bytes: &[u8]) -> Result<(), String> {
                 };
                 let keys = a.iter().map(|(k, _)| k).chain(b.iter().map(|(k, _)| k));
                 keys.filter(|k| !(page && k.as_slice() == b"Annots") && !generated(k))
-                    .all(|key| match (a.get(key), b.get(key)) {
-                        (Ok(a), Ok(b)) => same(a, b, before, after, seen, depth + 1),
-                        _ => false,
+                    .all(|key| {
+                        let segment = format!("/{}", String::from_utf8_lossy(key));
+                        match (a.get(key), b.get(key)) {
+                            (Ok(a), Ok(b)) => within(segment, a, b, before, after, seen, path),
+                            _ => {
+                                path.push(segment);
+                                false
+                            }
+                        }
                     })
             }
             (Object::Array(a), Object::Array(b)) => {
-                a.len() == b.len()
-                    && a.iter()
-                        .zip(b)
-                        .all(|(a, b)| same(a, b, before, after, seen, depth + 1))
+                if a.len() != b.len() {
+                    path.push("(array length)".into());
+                    return false;
+                }
+                a.iter().zip(b).enumerate().all(|(index, (a, b))| {
+                    within(format!("[{index}]"), a, b, before, after, seen, path)
+                })
             }
             (Object::Stream(a), Object::Stream(b)) => {
                 let decoded = |s: &lopdf::Stream| {
@@ -598,23 +623,35 @@ fn verify_preservation(original: &[u8], bytes: &[u8]) -> Result<(), String> {
                         Some(s.content.clone())
                     }
                 };
+                let (decoded_a, decoded_b) = (decoded(a), decoded(b));
+                // Image codecs such as DCTDecode cannot be decoded here; those streams
+                // must keep their encoded bytes and encoding parameters unchanged.
+                let content = match (&decoded_a, &decoded_b) {
+                    (Some(_), Some(_)) => decoded_a == decoded_b,
+                    _ => a.content == b.content,
+                };
                 let mut ad = a.dict.clone();
                 let mut bd = b.dict.clone();
-                for key in [b"Length".as_slice(), b"Filter", b"DecodeParms"] {
-                    ad.remove(key);
-                    bd.remove(key);
+                ad.remove(b"Length");
+                bd.remove(b"Length");
+                if decoded_a.is_some() && decoded_b.is_some() {
+                    for key in [b"Filter".as_slice(), b"DecodeParms"] {
+                        ad.remove(key);
+                        bd.remove(key);
+                    }
                 }
-                let content = decoded(a);
-                content.is_some()
-                    && content == decoded(b)
-                    && same(
-                        &Object::Dictionary(ad),
-                        &Object::Dictionary(bd),
-                        before,
-                        after,
-                        seen,
-                        depth + 1,
-                    )
+                if !content {
+                    path.push("(stream data)".into());
+                    return false;
+                }
+                same(
+                    &Object::Dictionary(ad),
+                    &Object::Dictionary(bd),
+                    before,
+                    after,
+                    seen,
+                    path,
+                )
             }
             (Object::Integer(a), Object::Real(b)) => *a as f64 == f64::from(*b),
             (Object::Real(a), Object::Integer(b)) => f64::from(*a) == *b as f64,
@@ -622,20 +659,28 @@ fn verify_preservation(original: &[u8], bytes: &[u8]) -> Result<(), String> {
             _ => a == b,
         }
     }
+    let changed = |path: &[String]| {
+        format!(
+            "Saving blocked: unrelated PDF content or metadata changed at {}",
+            path.concat()
+        )
+    };
     for key in [b"Root".as_slice(), b"Info"] {
+        let mut path = vec![String::from_utf8_lossy(key).into_owned()];
         match (before.trailer.get(key), after.trailer.get(key)) {
-            (Ok(a), Ok(b)) if same(a, b, &before, &after, &mut seen, 0) => {}
+            (Ok(a), Ok(b)) if same(a, b, &before, &after, &mut seen, &mut path) => {}
             (Err(_), Err(_)) => {}
-            _ => return Err("Saving blocked: unrelated PDF content or metadata changed".into()),
+            _ => return Err(changed(&path)),
         }
     }
     let (before_pages, after_pages) = (before.get_pages(), after.get_pages());
     if before_pages.len() != after_pages.len() {
-        return Err("Saving blocked: unrelated PDF content or metadata changed".into());
+        return Err(changed(&["page count".into()]));
     }
-    for (before_page, after_page) in before_pages.values().zip(after_pages.values()) {
+    for ((number, before_page), after_page) in before_pages.iter().zip(after_pages.values()) {
         let a = preserved_page_annotations(&before, *before_page)?;
         let b = preserved_page_annotations(&after, *after_page)?;
+        let mut path = Vec::new();
         if a.len() != b.len()
             || !a.into_iter().zip(b).all(|(a, b)| {
                 same(
@@ -644,11 +689,13 @@ fn verify_preservation(original: &[u8], bytes: &[u8]) -> Result<(), String> {
                     &before,
                     &after,
                     &mut seen,
-                    0,
+                    &mut path,
                 )
             })
         {
-            return Err("Saving blocked: links or other preserved annotations changed".into());
+            return Err(format!(
+                "Saving blocked: links or other preserved annotations changed on page {number}"
+            ));
         }
     }
 
@@ -1049,6 +1096,53 @@ mod tests {
         let mut bytes = Vec::new();
         doc.save_to(&mut bytes).unwrap();
         assert!(editing_status(&bytes).is_some());
+    }
+
+    #[test]
+    fn undecodable_images_compare_by_encoded_bytes_and_refusals_name_the_change() {
+        use lopdf::{dictionary, Object, Stream};
+        let with_image = |data: &[u8]| {
+            let mut doc = lopdf::Document::load_mem(&pdf()).unwrap();
+            let image = doc.add_object(Stream::new(
+                dictionary! { "Type" => "XObject", "Subtype" => "Image", "Filter" => "DCTDecode" },
+                data.to_vec(),
+            ));
+            let page = *doc.get_pages().values().next().unwrap();
+            doc.get_object_mut(page)
+                .unwrap()
+                .as_dict_mut()
+                .unwrap()
+                .set(
+                    "Resources",
+                    dictionary! { "XObject" => dictionary! { "Im1" => image } },
+                );
+            let mut bytes = Vec::new();
+            doc.save_to(&mut bytes).unwrap();
+            bytes
+        };
+        // Not decodable as JPEG; only the encoded bytes can be compared.
+        let original = with_image(b"\xff\xd8 not really a jpeg");
+        verify_preservation(&original, &original).unwrap();
+        let error =
+            verify_preservation(&original, &with_image(b"\xff\xd8 another image")).unwrap_err();
+        assert_eq!(
+            error,
+            "Saving blocked: unrelated PDF content or metadata changed at \
+             Root/Pages/Kids[0]/Resources/XObject/Im1(stream data)"
+        );
+        let mut doc = lopdf::Document::load_mem(&original).unwrap();
+        doc.objects
+            .values_mut()
+            .filter_map(|object| object.as_stream_mut().ok())
+            .find(|stream| stream.dict.has(b"Filter"))
+            .unwrap()
+            .dict
+            .set("Filter", Object::Name(b"JPXDecode".to_vec()));
+        let mut recoded = Vec::new();
+        doc.save_to(&mut recoded).unwrap();
+        assert!(verify_preservation(&original, &recoded)
+            .unwrap_err()
+            .ends_with("/Im1/Filter"));
     }
 
     #[test]
