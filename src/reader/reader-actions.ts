@@ -420,6 +420,25 @@ export function createReaderActions({
   const runtimeGenerations = new Map<string, number>();
   const pendingSaves = new Map<string, Promise<ReaderActionOutcome>>();
   const pendingDraftCaptures = new Map<DocumentRuntime, Promise<ReaderActionOutcome>>();
+  // Viewer state changes (scrolling, zoom) request drafts too; exporting is costly, so
+  // skip a capture whose path, source version, and edit revision are already on disk.
+  const persistedDrafts = new WeakMap<
+    DocumentRuntime,
+    { documentPath: string; sourceVersion: string; editedRevision: number }
+  >();
+  const isDraftPersisted = (
+    runtime: DocumentRuntime,
+    documentPath: string,
+    sourceVersion: string,
+    editedRevision: number,
+  ): boolean => {
+    const draft = persistedDrafts.get(runtime);
+    return (
+      draft?.documentPath === documentPath &&
+      draft.sourceVersion === sourceVersion &&
+      draft.editedRevision === editedRevision
+    );
+  };
   const pendingReloads = new Set<string>();
   const recentlyClosedDocumentPaths: string[] = [];
   let globalTail = Promise.resolve();
@@ -962,14 +981,17 @@ export function createReaderActions({
       if (!editing) return false;
       const state = editing.state();
       if (!state.dirty || state.readOnlyReason) return false;
+      if (isDraftPersisted(runtime, documentPath, sourceVersion, state.revision)) return false;
       const bytes = await exportPdf(runtime, editing);
       if (editing.state().revision !== state.revision) continue;
+      persistedDrafts.delete(runtime);
       await recoveryDraftAdapter.write({
         documentPath,
         sourceVersion,
         editedRevision: state.revision,
         bytes,
       });
+      persistedDrafts.set(runtime, { documentPath, sourceVersion, editedRevision: state.revision });
       if (editing.state().revision === state.revision) return true;
     }
   };
@@ -1009,6 +1031,7 @@ export function createReaderActions({
     sourceBytes: Uint8Array,
   ): Promise<void> => {
     if (!recoveryDraftAdapter || !runtime.recovery) return;
+    persistedDrafts.delete(runtime);
     const result = await enqueueRecovery(() =>
       recoveryDraftAdapter.reconcile({
         previousDocumentPath,
@@ -1028,6 +1051,7 @@ export function createReaderActions({
     if (!recoveryDraftAdapter || !runtime.recovery) return;
     const repairAfterWrite = recoveryDraftAdapter.repairAfterWrite;
     if (!repairAfterWrite) throw new Error('Recovery Draft repair is unavailable');
+    persistedDrafts.delete(runtime);
     await enqueueRecovery(async () => {
       while (true) {
         const editing = runtime.editing;
@@ -1046,15 +1070,23 @@ export function createReaderActions({
           draftBytes,
         });
         runtime.recovery = { sourceVersion: result.sourceVersion };
+        persistedDrafts.set(runtime, {
+          documentPath,
+          sourceVersion: result.sourceVersion,
+          editedRevision: state.revision,
+        });
         if (editing.state().revision === state.revision) return;
       }
     });
   };
 
-  const removeRecoveryDraft = (documentPath: string): Promise<void> =>
-    recoveryDraftAdapter
+  const removeRecoveryDraft = (documentPath: string): Promise<void> => {
+    const registered = runtimes.get(documentPath);
+    if (registered) persistedDrafts.delete(registered.runtime);
+    return recoveryDraftAdapter
       ? enqueueRecovery(() => recoveryDraftAdapter.remove(documentPath))
       : Promise.resolve();
+  };
 
   const saveDocument = async (
     action: Extract<ReaderAction, { type: 'saveDocumentAs' | 'saveDocument' }>,

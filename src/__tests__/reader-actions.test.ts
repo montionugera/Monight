@@ -261,6 +261,15 @@ describe('Reader Actions', () => {
     await expect(first).resolves.toMatchObject({ status: 'performed' });
     await expect(second).resolves.toMatchObject({ status: 'performed' });
     expect(writes).toEqual([1, 2]);
+    // Scrolling and zooming request captures without new edits; those skip the export.
+    await expect(reader.captureRecoveryDraft('/docs/first.pdf')).resolves.toMatchObject({
+      status: 'no-op',
+    });
+    runtime.recovery = { sourceVersion: 'source-v2' };
+    await expect(reader.captureRecoveryDraft('/docs/first.pdf')).resolves.toMatchObject({
+      status: 'performed',
+    });
+    expect(writes).toEqual([1, 2, 2]);
 
     const failing = createReaderActions({
       initialSession: INITIAL_SESSION,

@@ -565,8 +565,20 @@ fn verify_preservation(original: &[u8], bytes: &[u8]) -> Result<(), String> {
         match (a, b) {
             (Object::Dictionary(a), Object::Dictionary(b)) => {
                 let page = a.get(b"Type").and_then(Object::as_name).ok() == Some(b"Page");
+                // PDFium names every annotation and generates missing appearances on
+                // save. Preserved annotations may also be reached through the structure
+                // tree, so the allowance applies wherever they are compared.
+                let preserved = a
+                    .get(b"Subtype")
+                    .and_then(Object::as_name)
+                    .is_ok_and(|subtype| PRESERVED_ANNOTATIONS.contains(&subtype));
+                let generated = |key: &[u8]| {
+                    preserved
+                        && !a.has(key)
+                        && [b"NM".as_slice(), b"AP", b"PDFIUM_HasGeneratedAP"].contains(&key)
+                };
                 let keys = a.iter().map(|(k, _)| k).chain(b.iter().map(|(k, _)| k));
-                keys.filter(|k| !(page && k.as_slice() == b"Annots"))
+                keys.filter(|k| !(page && k.as_slice() == b"Annots") && !generated(k))
                     .all(|key| match (a.get(key), b.get(key)) {
                         (Ok(a), Ok(b)) => same(a, b, before, after, seen, depth + 1),
                         _ => false,
@@ -623,16 +635,7 @@ fn verify_preservation(original: &[u8], bytes: &[u8]) -> Result<(), String> {
     }
     for (before_page, after_page) in before_pages.values().zip(after_pages.values()) {
         let a = preserved_page_annotations(&before, *before_page)?;
-        let mut b = preserved_page_annotations(&after, *after_page)?;
-        // PDFium names every annotation and generates missing appearances on save;
-        // anything the original already had must survive unchanged.
-        for (a, b) in a.iter().zip(&mut b) {
-            for key in [b"NM".as_slice(), b"AP", b"PDFIUM_HasGeneratedAP"] {
-                if !a.has(key) {
-                    b.remove(key);
-                }
-            }
-        }
+        let b = preserved_page_annotations(&after, *after_page)?;
         if a.len() != b.len()
             || !a.into_iter().zip(b).all(|(a, b)| {
                 same(
@@ -1069,9 +1072,24 @@ mod tests {
             "Rect" => vec![72.into(), 650.into(), 260.into(), 685.into()],
             "A" => dictionary! { "S" => "URI", "URI" => Object::string_literal("https://example.com") },
         });
+        // Tagged PDFs also reach their links through the structure tree.
+        let structure = doc.add_object(dictionary! {
+            "Type" => "StructTreeRoot",
+            "K" => dictionary! { "Type" => "OBJR", "Obj" => link },
+        });
+        let root = doc.trailer.get(b"Root").unwrap().as_reference().unwrap();
+        doc.get_object_mut(root)
+            .unwrap()
+            .as_dict_mut()
+            .unwrap()
+            .set("StructTreeRoot", structure);
         let original = set_annots(&mut doc, vec![link.into()]);
         assert_eq!(editing_status(&original), None);
 
+        // PDFium names existing annotations and flags generated appearances on save.
+        let saved_link = doc.get_object_mut(link).unwrap().as_dict_mut().unwrap();
+        saved_link.set("NM", Object::string_literal("pdfium-name"));
+        saved_link.set("PDFIUM_HasGeneratedAP", true);
         let comment = doc.add_object(dictionary! { "Type" => "Annot", "Subtype" => "Text" });
         let commented = set_annots(&mut doc, vec![link.into(), comment.into()]);
         let removed = set_annots(&mut doc, vec![comment.into()]);
